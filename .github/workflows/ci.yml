@@ -13,7 +13,7 @@ env:
 jobs:
   rust-checks:
     name: Rust Backend Checks
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-latest
     
     steps:
       - name: Checkout code
@@ -27,7 +27,7 @@ jobs:
       - name: Install system dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.0-dev libappindicator3-dev librsvg2-dev patchelf
+          sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
       
       - name: Cache cargo registry
         uses: actions/cache@v4
@@ -89,7 +89,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        platform: [ubuntu-20.04, windows-latest]
+        platform: [ubuntu-latest, windows-latest]
     
     steps:
       - name: Checkout code
@@ -111,10 +111,10 @@ jobs:
         run: pnpm install --frozen-lockfile
       
       - name: Install Tauri dependencies (Ubuntu)
-        if: matrix.platform == 'ubuntu-20.04'
+        if: matrix.platform == 'ubuntu-latest'
         run: |
           sudo apt-get update
-          sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.0-dev libappindicator3-dev librsvg2-dev patchelf
+          sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
       
       - name: Cache cargo registry (Tauri build)
         uses: actions/cache@v4
