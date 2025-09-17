@@ -1,0 +1,8 @@
+# Configuration for Clippy lints
+
+# Deny common mistakes and performance issues
+too-many-arguments-threshold = 7
+type-complexity-threshold = 250
+
+# Allow some pedantic lints that might be too strict for this project
+avoid-breaking-exported-api = false
