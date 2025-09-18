@@ -1,0 +1,1 @@
+# Build artifacts\n**/bin/\n**/obj/\n**/TestResults/\n/.vs/\n*.user\n*.suo\n*.cache\n# Publish output\n**/publish/\n# OS files\n.DS_Store\nThumbs.db\n
