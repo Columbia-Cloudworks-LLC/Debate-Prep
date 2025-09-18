@@ -1,0 +1,15 @@
+# Build artifacts
+**/bin/
+**/obj/
+**/TestResults/
+/.vs/
+*.user
+*.suo
+*.cache
+
+# Publish output
+**/publish/
+
+# OS files
+.DS_Store
+Thumbs.db

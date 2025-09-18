@@ -1,0 +1,13 @@
+C:\Users\viral\OneDrive\Desktop\Debate-Prep\src\DebatePrep.Core\obj\Debug\net8.0\DebatePrep.Core.csproj.AssemblyReference.cache
+C:\Users\viral\OneDrive\Desktop\Debate-Prep\src\DebatePrep.Core\obj\Debug\net8.0\DebatePrep.Core.GeneratedMSBuildEditorConfig.editorconfig
+C:\Users\viral\OneDrive\Desktop\Debate-Prep\src\DebatePrep.Core\obj\Debug\net8.0\DebatePrep.Core.AssemblyInfoInputs.cache
+C:\Users\viral\OneDrive\Desktop\Debate-Prep\src\DebatePrep.Core\obj\Debug\net8.0\DebatePrep.Core.AssemblyInfo.cs
+C:\Users\viral\OneDrive\Desktop\Debate-Prep\src\DebatePrep.Core\obj\Debug\net8.0\DebatePrep.Core.csproj.CoreCompileInputs.cache
+C:\Users\viral\OneDrive\Desktop\Debate-Prep\src\DebatePrep.Core\obj\Debug\net8.0\DebatePrep.Core.sourcelink.json
+C:\Users\viral\OneDrive\Desktop\Debate-Prep\src\DebatePrep.Core\bin\Debug\net8.0\DebatePrep.Core.deps.json
+C:\Users\viral\OneDrive\Desktop\Debate-Prep\src\DebatePrep.Core\bin\Debug\net8.0\DebatePrep.Core.dll
+C:\Users\viral\OneDrive\Desktop\Debate-Prep\src\DebatePrep.Core\bin\Debug\net8.0\DebatePrep.Core.pdb
+C:\Users\viral\OneDrive\Desktop\Debate-Prep\src\DebatePrep.Core\obj\Debug\net8.0\DebatePrep.Core.dll
+C:\Users\viral\OneDrive\Desktop\Debate-Prep\src\DebatePrep.Core\obj\Debug\net8.0\refint\DebatePrep.Core.dll
+C:\Users\viral\OneDrive\Desktop\Debate-Prep\src\DebatePrep.Core\obj\Debug\net8.0\DebatePrep.Core.pdb
+C:\Users\viral\OneDrive\Desktop\Debate-Prep\src\DebatePrep.Core\obj\Debug\net8.0\ref\DebatePrep.Core.dll
