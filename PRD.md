@@ -1,459 +1,547 @@
-# Product Requirements Document — Debate-Prep (Moderator‑Controlled Multi‑Agent Debate)
+# Product Requirements Document — Debate-Prep (Moderator-Controlled Multi-Agent Debate)
 
-## Document Control
+## 0) Change Log
 
-- **Owner**: Columbia Cloudworks LLC
-- **Authors**: Product, Engineering
-- **Version**: 1.0 (Initial)
-- **License**: MIT
-- **Project**: Debate-Prep
-- **Status**: Draft → Review → Approved (target: v1.0 GA)
-- **Last Updated**: 2025‑09‑17
+* **v2.0 (2025-09-18)**: Added interaction flows & state machine, prompt/critique memory spec, error taxonomy & recovery, rigorous testing plan, release engineering, provider capability matrix, performance budgets, accessibility, analytics schema (opt-in), backup/restore, threat model, sample data/exports, provider adapter interface, database migrations, coding standards, and glossary.
+* **v1.0 (2025-09-17)**: Initial PRD.
 
-### 1) Summary
+## 1) Document Control
 
-Debate-Prep is a desktop debate playground where users create AI participants with custom personas and a human moderator controls who speaks next. Each response can be rated; negative feedback updates a participant’s critique memory to adjust future replies. Sessions are saved locally and can be exported.
-
-### 2) Problem Statement
-
-People preparing for debates need fast, offline‑friendly tools to simulate multi‑party arguments with tight control over turn‑taking and cost. Existing chat apps auto‑advance or lack structured feedback loops, making deliberate practice inefficient.
-
-### 3) Goals (v1)
-
-- Deliver a reliable Windows‑first desktop app with native installer.
-- Enable moderator‑controlled turns; no automatic agent rounds.
-- Support arbitrary participants with persistent personas and critique memory.
-- Provide first‑class exports (Markdown/HTML/TXT). PDF in v1.1.
-- Pluggable model providers: start with Hugging Face; add local (Ollama) next.
-
-### 4) Non‑Goals (v1)
-
-- No accounts or cloud sync.
-- No voice/avatars; text only.
-- No automatic multi‑round debates without moderator action.
-
-### 5) Users & Personas
-
-- Debaters and students: practice arguments, rebuttals, and cross‑examination.
-- Policy analysts/journalists: quickly test positions and counter‑positions.
-- Coaches/teachers: structure classroom or team drills.
-
-### 6) Core Use Cases
-
-- Create a session on a topic with 2‑5 AI participants and custom personas.
-- Moderator selects who speaks next; agents never speak without being called.
-- Rate each response; a thumbs‑down stores a succinct critique and guides the next reply.
-- Export transcript for review or sharing.
-
-### 7) Functional Requirements (FR)
-
-- **FR‑1 Sessions**: Create, rename, delete sessions; auto‑save transcript.
-- **FR‑2 Participants**: Add, edit, remove participants; persona text; optional color.
-- **FR‑3 Turn Control**: Moderator can call on any participant to generate a response; streaming tokens display live.
-- **FR‑4 Feedback**: Thumbs up/down per message; optional reason for downvotes.
-- **FR‑5 Adaptation**: Next time a participant is called, inject self‑critique/adjustment guidance derived from prior downvotes.
-- **FR‑6 Provider Settings**: Configure provider, model, API key (stored encrypted), decoding params.
-- **FR‑7 Exports**: Export session as Markdown/HTML/TXT.
-- **FR‑8 Search & List**: List sessions with search by title.
-- **FR‑9 Cost/Token Info**: Show per‑message token/cost estimate when available.
-
-### 8) Non‑Functional Requirements (NFR)
-
-- **NFR‑1 Performance**: First token within ≤2.5s on a typical hosted model; smooth streaming without UI jank.
-- **NFR‑2 Reliability**: No data loss on crash; last message persisted upon completion.
-- **NFR‑3 Security**: API keys encrypted at rest (Windows DPAPI; OS keyring on others). No telemetry by default.
-- **NFR‑4 Offline**: App runs without network; model calls obviously require connectivity or local provider.
-- **NFR‑5 Installability**: Signed MSI builds; versioned releases with app icon and metadata.
-
-### 9) UX Overview
-
-- **Sidebar**: sessions list, search, new session.
-- **Main**: transcript with colored bubbles; message actions: copy, thumbs up/down.
-- **Top Toolbar**: model picker, temperature/token limit, "Call on …" dropdown, moderator input, export menu.
-- **Feedback UX**: Downvoted messages tinted; optional text reason captured inline.
-
-### 10) System & Data Architecture (High Level)
-
-- **App Shell**: Tauri (Rust backend, WebView UI via React + Vite + TypeScript).
-- **Backend**: Rust (Tokio, Reqwest, Serde, Rusqlite, DPAPI/keyring).
-- **Providers**: Hugging Face Inference API (v1). Ollama (v1.1).
-- **Streaming**: Tokens emitted as Tauri events to UI.
-- **Storage**: SQLite tables for settings, sessions, participants, messages. Keys encrypted.
-
-### 11) Data Model (SQLite)
-
-- `usersettings(id, provider, model_id, api_key_encrypted, params_json, created_at)`
-- `sessions(id, title, created_at, updated_at)`
-- `participants(id, session_id, name, color, persona, memory_json, provider_overrides_json)`
-- `messages(id, session_id, participant_id, role, content, tokens_out, cost_estimate, feedback, created_at)`
-
-### 12) Privacy & Security
-
-- No server‑side storage.
-- API keys encrypted at rest; never exported.
-- Configurable token caps; safe‑prompting guardrails in system prompts.
-
-### 13) Assumptions & Dependencies
-
-- Users can provide their own hosted model API key (Hugging Face) or use local models later.
-- Windows 10/11 supported; macOS/Linux later if demand.
-- Tauri packaging produces MSI with appropriate certificates when available.
-
-### 14) Risks & Mitigations
-
-- **Provider variability**: Response format/latency differs across models → abstract provider with strict interface and robust streaming fallback.
-- **Prompt bloat**: Memory grows and degrades quality → compact critique memory, rotate older items, summarize context.
-- **Key storage portability**: DPAPI is Windows‑specific → use OS keyring abstraction on other OSes.
-- **Cost surprises**: Users overspend with long responses → show live token/cost estimates and enforce caps.
-
-### 15) Success Metrics & KPIs
-
-- Time to first token: ≤2.5s P50, ≤4.0s P95 (hosted model baseline).
-- Session export success rate: ≥99%.
-- Crash‑free sessions (7‑day): ≥99.5%.
-- Moderator control usage: ≥90% of messages initiated via "Call on …".
-- Downvote utilization: ≥50% of sessions include at least one downvote with reason.
-
-### 16) Release Plan
-
-- **v1.0**: HF provider, moderator control, streaming, feedback learning, MD/HTML/TXT exports, MSI installer.
-- **v1.1**: Ollama provider, PDF export, session tags.
-- **v1.2**: Judge assistant, CSV analytics export (talk time, downvote ratio).
-
-### 17) Acceptance Criteria (v1.0)
-
-- Can create sessions, add participants, and call on any participant; messages stream and persist.
-- Thumbs‑down stores a compact critique; next turn includes self‑critique/adjustment block.
-- API keys stored encrypted; app functions after restart with settings intact.
-- Exports generate valid Markdown/HTML/TXT with participant colors and timestamps.
-- MSI builds cleanly and installs on a clean Windows 11 machine.
-
-### 18) Open Questions
-
-- Which default HF model(s) to recommend for good latency/quality?
-- Do we provide seed prompt templates for common debate formats (e.g., Policy, Lincoln‑Douglas)?
-- Should we include optional telemetry (opt‑in) for performance metrics only?
+* **Owner**: Columbia Cloudworks LLC
+* **Authors**: Product, Engineering
+* **License**: MIT
+* **Project**: Debate-Prep
+* **Status**: Draft → Review → Approved (target: v1.0 GA)
+* **Last Updated**: 2025-09-18
 
 ---
 
-### 19) Licensing
+## 2) Summary
 
-- License: MIT. Users may copy, modify, merge, publish, distribute, sublicense, and sell copies with attribution per the LICENSE file.
-- Copyright (c) 2025 Columbia Cloudworks LLC.
-- Third-party dependencies remain under their respective licenses.
-
-## Appendix A: Previous notes (kept for reference)
-
-Yes—let’s do this in Rust and ship real installers. The cleanest path is **Tauri**: Rust backend + a lightweight web UI in the same app window. You get a modern “ChatGPT-style” interface, native menus, file dialogs, and cross-platform packaging (MSI on Windows) with minimal overhead. Under the hood we’ll keep the multi-agent orchestration in Rust so it’s fast, safe, and easy to test.
-
-Here’s the full plan, then the step-by-step build, alternatives, and a ready-to-paste PRD.
+Debate-Prep is a Windows-first, moderator-controlled, multi-agent debate sandbox. Users define AI participants with personas. The moderator explicitly selects who speaks next, can rate responses, and uses downvotes (with reasons) to update a participant’s “critique memory” that guides future replies. Sessions persist locally and can be exported.
 
 ---
 
-## Direct answer (stack & shape)
+## 3) Problem Statement
 
-- **App shell & packaging:** **Tauri** (Rust backend, WebView UI). Ships as MSI/DMG/deb; small, fast, signed releases.
-- **UI:** React (Vite) in the WebView. Sidebar of sessions, main chat, per-message copy, export buttons, thumbs up/down.
-- **Rust core (orchestration):**
-
-  - Multi-agent debate engine with **Moderator-driven turns** (no auto-rounds; user picks who speaks).
-  - Provider trait to talk to **Hugging Face Inference API** (and optional **Ollama**/**vLLM** later).
-  - Streaming tokens (SSE or chunked) bridged to the UI via Tauri events.
-  - **Persona & memory** per participant, including “critique memory” that applies negative feedback to future prompts.
-- **Storage:** SQLite (via `rusqlite`) for sessions, messages, participants, provider settings. User API keys encrypted with **Windows DPAPI** (`dpapi-rs`) on Windows; fallback keyring on macOS/Linux.
-- **Exports:** Markdown/HTML/plaintext in v1. PDF in v1.1 (via “print to PDF” from the WebView or a Rust PDF backend).
-- **Telemetry/cost control:** Per-message token/cost estimate; moderator decides who speaks next to control spend.
+Debaters, students, and analysts need offline-friendly practice with surgical control of turn-taking and rapid learning loops. Existing LLM chats either auto-advance or lack structured, reusable critique. Debate-Prep creates reliable, cost-aware drills with deterministic turns and adaptive feedback.
 
 ---
 
-## Step-by-step (how to build it)
+## 4) Goals (v1)
 
-1. **Scaffold the app**
+* Windows-first native desktop app with signed installer.
+* Moderator-controlled turns (no auto rounds).
+* Arbitrary participants, persistent personas & critique memory.
+* First-class exports (Markdown/HTML/TXT). PDF in v1.1.
+* Pluggable model providers (start: Hugging Face; add Ollama next).
+* Zero cloud dependency for state (local SQLite).
 
-   - `cargo install create-tauri-app`
-   - `pnpm create tauri-app` → choose React + TypeScript; or set up Vite manually.
-   - Add Rust crates:
-     `reqwest` (HTTP), `tokio` (async), `serde`/`serde_json`, `rusqlite`, `dpapi-rs` (Windows), `anyhow`, `thiserror`, `async-stream`, `regex`.
-   - Optional providers later: `ollama-rs` (or plain HTTP to `localhost:11434`).
+### Non-Goals (v1)
 
-2. **Data model (SQLite)**
-
-   - `usersettings(id, provider, model_id, api_key_encrypted, params_json, created_at)`
-   - `sessions(id, title, created_at, updated_at)`
-   - `participants(id, session_id, name, persona, provider_overrides_json, memory_json)`
-   - `messages(id, session_id, participant_id NULLABLE for moderator, role, content, tokens_out, cost_estimate, created_at, feedback ENUM('up','down',NULL))`
-   - Indexes on session\_id and created\_at for fast loading.
-
-3. **Provider abstraction**
-
-   ```rust
-   #[derive(Clone, Debug)]
-   pub struct GenParams {
-       pub temperature: f32,
-       pub top_p: f32,
-       pub max_new_tokens: u32,
-       pub stop: Vec<String>,
-   }
-
-   #[async_trait::async_trait]
-   pub trait LlmProvider: Send + Sync {
-       async fn stream_completion(
-           &self,
-           model_id: &str,
-           api_key: &str,
-           messages: &[ChatMessage], // {role: system|user|assistant, content: String}
-           params: &GenParams,
-       ) -> anyhow::Result<Pin<Box<dyn Stream<Item = Result<String, anyhow::Error>> + Send>>>;
-   }
-   ```
-
-   - Implement `HuggingFaceProvider` using `reqwest` to the HF Inference API text-generation endpoint.
-   - For **streaming**, prefer models/endpoints that support SSE; otherwise poll partials or stream line-by-line chunks.
-
-4. **Orchestration (strict moderator control)**
-
-   - Keep a **conversation context** in Rust: a vector of `ChatMessage` per participant plus a “shared transcript.”
-   - When the moderator clicks “Call on Alice,” the backend:
-
-     - Builds the **system prompt** (global debate rules + Alice’s persona + Alice’s “critique memory”).
-     - Builds a **compact context**: recent turns plus any moderator interrupt.
-     - Starts a streaming generation and **dispatches tokens** to the UI via `tauri::AppHandle::emit_all("token", …)`.
-     - Finalizes the message, computes token count/cost estimate, and persists to SQLite.
-
-5. **Persona drift & learning from feedback**
-
-   - For each participant, store two memories:
-
-     - **Style/strategy memory**: compact bullet list learned over the whole session (“use concrete examples,” “address counterarguments quickly,” “avoid jargon unless defined”).
-     - **Critique memory**: distilled “why the last response was unpersuasive” snippets from thumbs-down.
-   - On thumbs-down, immediately write a small **feedback note** into critique memory:
-
-     - Example note: “User not convinced: lacked evidence; ignored grid reliability; too long.”
-   - **At next turn**, prepend a short **Self-Critique → Adjustment** block to the participant’s system message:
-
-     ```
-     SELF-CRITIQUE (from moderator feedback): 
-     - Last attempt lacked concrete evidence and ignored X.
-     ADJUSTMENT (for this reply):
-     - Provide one sourced stat, address X succinctly, keep ≤180 words.
-     ```
-
-   - This gives you **behavioral adaptation** without risky fine-tuning.
-
-6. **UI (React in Tauri)**
-
-   - Left sidebar: scrollable list of sessions; new session button; search.
-   - Main pane: message list (assistant bubbles by participant color), per-message copy, thumbs up/down.
-   - Top bar: topic/title, model, temperature, token limit, **“Call on…”** dropdown listing participants (and a “Moderator says…” input).
-   - Export menu: Markdown/HTML/plaintext; save with file dialog (Tauri API).
-   - UX detail: show token & cost estimate for each message; show a red bar on thumbs-down messages.
-
-7. **Secure key storage**
-
-   - On Windows, use `dpapi-rs` to encrypt API key before writing to DB.
-   - On macOS/Linux, use OS keyring (via `keyring` crate) or sealed file encryption.
-
-8. **Exports**
-
-   - **Markdown**: convert session messages into a fenced transcript with metadata.
-   - **HTML**: static HTML with minimal CSS; include participant colors; emoji for feedback.
-   - **Plaintext**: simple prefixed lines.
-   - **PDF (v1.1)**: either invoke “print to PDF” on the WebView or render HTML with a Rust PDF crate.
-
-9. **Packaging**
-
-   - Tauri’s `tauri build` → MSI on Windows. Sign if you have a cert; set app icon and versioning.
+* No accounts/cloud sync.
+* No voice/avatars.
+* No automatic multi-rounds without moderator action.
 
 ---
 
-## Alternative perspectives / options
+## 5) Users & Personas
 
-- **Pure Rust UI** (no web): `egui`/`eframe` gives a native feel and single-binary simplicity. Exporting HTML/PDF and rich layout is harder, and you’ll re-implement basic UI niceties. Tauri keeps you productive.
-- **Local models first**: Add an **Ollama provider** so users can run Llama/Qwen/Mistral locally with no API key. Keep Hugging Face as a toggle for people who want hosted accuracy or specific models.
-- **Judging agent**: Add an optional neutral “Judge” participant that summarizes persuasiveness and flags fallacies on demand—not automatic (to save cost), but handy.
+* **Debaters/Students** — practice arguments & cross-examination.
+* **Policy Analysts/Journalists** — test positions & counters rapidly.
+* **Coaches/Teachers** — structure drills with fine-grained control.
 
----
-
-## Practical summary / action plan
-
-1. Initialize Tauri app (React + TS) and Rust backend.
-2. Add SQLite + DPAPI and create the DB schema.
-3. Implement `LlmProvider` trait + `HuggingFaceProvider`.
-4. Build the **moderator-driven** speak-next flow and streaming to UI.
-5. Add per-message feedback → update participant critique memory → inject into next turn’s system prompt.
-6. Implement exports (MD/HTML/TXT). Ship v1.
-7. Add Ollama provider and PDF export in v1.1.
+Key needs: determinism over turn order, low cost, fast iteration, archived transcripts, reusable persona libraries.
 
 ---
 
-# PRD.md (drop-in)
+## 6) Core Use Cases & Acceptance (v1)
 
-```markdown
-# Debate-Prep — A Moderator-Controlled Multi-Agent Debate App (Rust + Tauri)
+1. **Create a session** with 2–5 participants; set topic & rules.
 
-## 1. Summary
-Debate-Prep is a desktop debate playground. Users define any number of AI participants with custom personas. A human moderator controls who speaks next; agents never auto-advance. Each response can be rated; thumbs-down teaches that participant to adjust future replies to be more persuasive. Sessions are saved, searchable, and exportable.
+   * *Accept*: Session saved; empty transcript visible; participants listed.
+2. **Moderator calls on a participant** to respond.
 
-## 2. Goals
-- Local, fast, safe desktop app (Windows-first).
-- Moderator fully controls turns to manage token/cost spend.
-- Arbitrary participants with persistent personas & adaptive “critique memory.”
-- First-class exports (Markdown/HTML/TXT; PDF in v1.1).
-- Pluggable providers (start with Hugging Face; add Ollama later).
+   * *Accept*: Streaming tokens appear ≤2.5s (P50) from submit (hosted baseline).
+3. **Provide feedback** with thumbs up/down; optional downvote reason.
 
-## 3. Non-Goals (v1)
-- No online accounts, no cloud sync.
-- No voice/avatars; text only.
-- No background auto-rounds (always moderator-driven).
+   * *Accept*: Downvote stores compact critique; next turn injects guidance.
+4. **Export transcript** as MD/HTML/TXT with timestamps & colors.
 
-## 4. Key Concepts
-- **Moderator:** the user, controls floor.
-- **Participant:** an AI persona with memory and provider config.
-- **Message:** one turn’s text from a participant or the moderator.
-- **Feedback:** thumbs up/down per message; downvotes feed critique memory.
+   * *Accept*: Export completes and opens/save dialog without data loss.
+5. **Configure model provider** & decoding params; store key encrypted.
 
-## 5. UX
-- **Sidebar:** sessions list + search + “New Session.”
-- **Main:** chat transcript with colored bubbles; top toolbar:
-  - Model picker, temperature, token limit.
-  - “Call on …” (dropdown of participants).
-  - Moderator input (“Ask or steer”), Send.
-  - Export menu (MD/HTML/TXT).
-- **Message actions:** Copy, Thumbs up/down. Downvoted messages tint red and annotate why.
-- **Settings:** Provider (Hugging Face), encrypted API key, default model, decoding params.
+   * *Accept*: App restarts with settings intact; key still valid.
 
-## 6. System Behavior
-- **Turn model:** No auto-debate; moderator calls on a participant at any time.
-- **Prompting:**
-  - Global policy: debate etiquette, address audience, cite succinctly, no role-switching.
-  - Persona: participant’s role, stance, constraints (brevity cap).
-  - Critique memory: short bullets from prior thumbs-down → immediate adjustment plan.
-  - Context: compact rolling transcript (summarized beyond N tokens).
-- **Learning loop:** Thumbs-down → store short critique → injected next time in system prelude.
+---
 
-## 7. Architecture
-- **UI:** Tauri WebView (React + Vite + TS), shadcn/ui.
-- **Backend:** Rust (Tokio, Reqwest, Rusqlite, DPAPI on Windows).
-- **Providers:** 
-  - `HuggingFaceProvider` (v1).
-  - `OllamaProvider` (v1.1).
-- **Streaming:** Server-sent tokens emitted as Tauri events to the UI.
+## 7) System Overview & Architecture
 
-## 8. Data Model (SQLite)
-- `usersettings(id, provider, model_id, api_key_encrypted, params_json, created_at)`
-- `sessions(id, title, created_at, updated_at)`
-- `participants(id, session_id, name, color, persona, memory_json, provider_overrides_json)`
-- `messages(id, session_id, participant_id, role, content, tokens_out, cost_estimate, feedback, created_at)`
+### 7.1 App Shell & UI
 
-## 9. Security
-- API keys encrypted at rest (DPAPI on Windows; keyring on others).
-- No telemetry; local logs only.
-- Configurable token caps per message.
+* **Windows App SDK** (WinUI 3, .NET 8, C#, MVVM)
+* Optional **WebView2** for help/doc rendering.
 
-## 10. Exports
-- **Markdown:** full transcript + metadata.
-- **HTML:** styled static page.
-- **Plaintext:** prefixed lines.
-- **PDF (v1.1):** print-to-PDF or Rust HTML→PDF pipeline.
+### 7.2 Backend & Storage
 
-## 11. Provider API
-Trait:
-```
+* **.NET 8** services: Provider abstraction, Streaming, Critique Memory, Export, Persistence
+* **SQLite** (Microsoft.Data.Sqlite) local DB
+* **DPAPI** (ProtectedData) for API keys at rest
 
-stream\_completion(model\_id, api\_key, messages\[], params) -> Stream<String>
+### 7.3 Providers (v1: Hugging Face Inference API; v1.1: Ollama)
+
+* Streaming via HTTP/SSE or chunked reads
+* Adapter interface (see Appendix B)
+
+### 7.4 Threading & Streaming
+
+* Background read loop → main thread dispatch for UI token appends
+* Cancellation tokens for stop/abort
+* Backpressure: UI batch append cadence 30–100ms
+
+---
+
+## 8) Data Model (SQLite)
+
+### 8.1 Tables
+
+* `usersettings(id, provider, model_id, api_key_encrypted, params_json, created_at)`
+* `sessions(id, title, topic, rules, created_at, updated_at, tags_json)`
+* `participants(id, session_id, name, color, persona, memory_json, provider_overrides_json, created_at)`
+* `messages(id, session_id, participant_id, role, content, tokens_out, cost_estimate, feedback, feedback_reason, created_at)`
+* `artifacts(id, session_id, kind, path, created_at)` — exports/logs
+
+### 8.2 Indices & Constraints
+
+* FK: `participants.session_id → sessions.id`, `messages.session_id → sessions.id`
+* Indices: `sessions.updated_at`, `messages.session_id_created_at`, `participants.session_id_name`
+
+### 8.3 Migrations (v2 changes)
+
+* Add `topic`, `rules`, `tags_json`, `feedback_reason`, `artifacts` table.
+
+---
+
+## 9) Interaction Flows & State Machine
+
+### 9.1 Happy Path (2 participants)
+
+1. New session → add participants (A, B) → set topic/rules
+2. Moderator selects **Call on A** → stream → message saved
+3. Moderator *downvotes* A, adds reason
+4. Moderator **Call on B** → B’s prompt includes critique memory for B (if any), and current context
+5. Export transcript
+
+### 9.2 Edge Cases
+
+* Delete participant mid-session → retain transcript lines; mark participant as archived; prevent future calls.
+* Provider timeout → show retry; preserve prompt & partial tokens (if any); log error.
+
+### 9.3 State Machine (high-level)
+
+* **Session**: {Idle, Generating, Cancelled, Error}
+* Transitions:
+
+  * Idle → Generating (on “Call on …”)
+  * Generating → Idle (on stream end)
+  * Generating → Cancelled (on user cancel)
+  * Any → Error (on provider error)
+
+---
+
+## 10) Prompt Engineering & Critique Memory Spec
+
+### 10.1 Prompt Roles
+
+* **System**: Global rules for debate conduct, safety, format discipline.
+* **Persona** (Participant-specific): Goals, stance, tone, constraints.
+* **Context**: Topic, session rules, recent transcript window (token-bounded).
+* **Critique Injection** (per participant): Compact “What to improve next time” synthesized from downvotes.
+* **User**: Moderator instruction/turn request.
+
+### 10.2 System Template (v1)
 
 ```
-Messages follow chat format `{role: system|user|assistant, content}`.
-
-## 12. Feedback → Adaptation
-- Store compact reasons for downvotes (user-editable).
-- Inject “Self-Critique / Adjustment” block into the next system message.
-- Keep sizes small; rotate old items to avoid prompt bloat.
-
-## 13. Performance
-- Context summarization beyond window.
-- Backpressure on streaming to keep UI smooth.
-- Token/cost estimate shown live.
-
-## 14. Roadmap
-- v1.0: HF provider, moderator control, feedback learning, MD/HTML/TXT exports, MSI installer.
-- v1.1: Ollama provider, PDF export, session tags.
-- v1.2: “Judge” assistant, CSV analytics export (talk time, downvote ratio).
-
-## 15. Done Criteria (v1.0)
-- Create/run sessions; add participants; call on any participant to speak.
-- Streaming works; messages persist; feedback updates next turn behavior.
-- Exports function; keys stored encrypted; installer builds cleanly.
+You are taking part in a structured debate. Speak only when called.
+Follow these rules:
+- Stay within your assigned persona and stance.
+- Prefer concise, numbered arguments; cite premises explicitly.
+- Avoid hidden chain-of-thought; provide concise reasoning only.
+- Do not simulate other speakers or the moderator.
+- Never invent citations or facts; if unsure, mark as uncertain.
+- Hard cap: ≤{max_tokens_out} tokens.
+Format:
+- One short thesis line, then 2–5 bullet points, then 1–2 counter-vulnerabilities to your own position.
 ```
+
+### 10.3 Persona Template (stored with participant)
+
+```
+Name: {name}
+Position: {one-sentence stance}
+Constraints: {tone/voice constraints, examples of style}
+Disallowed: {logical fallacies or tactics to avoid}
+Key Sources/Frames: {optional short list; no fabricated citations}
+```
+
+### 10.4 Critique Memory
+
+* **Goal**: Convert downvotes into durable, compact guidance.
+* **Storage** (`memory_json` ring buffer of “rules”):
+
+```json
+[
+  {
+    "id": "cm_01",
+    "rule": "Avoid straw-manning opponent; restate their strongest form first.",
+    "bad_pattern": "Mischaracterized opposing claim without steelman.",
+    "guidance": "Begin by steelmanning opponent in 1 sentence.",
+    "evidence": "Downvote #12: 'You ignored their best evidence.'",
+    "strength": 0.8,
+    "created_at": "2025-09-18T15:02:00Z",
+    "last_used": "2025-09-18T15:10:00Z",
+    "hits": 3
+  }
+]
+```
+
+* **Budget**: ≤ 800 chars total; if overflow → summarize oldest by semantic clustering.
+* **Injection** (prepend, after persona):
+
+  * Header: “Improve by applying these 1–3 adjustments:”
+  * Include top-N rules by `strength` & recency (N=3).
+* **Update Algorithm**:
+
+  * On downvote: create rule from feedback\_reason; if similar to existing (`cosine ≥ 0.8` on bag-of-words), merge and increment `strength` (cap 1.0).
+  * On upvote: decay unrelated rules slightly (−0.02).
+  * On successful application (detected via moderator marking “addressed” or subsequent upvote), increment `hits`, bump `last_used`.
+
+### 10.5 Turn Prompt Assembly (order)
+
+1. System
+2. Persona
+3. Critique Memory (selected rules)
+4. Topic/Rules
+5. Recent Transcript Window (truncate oldest messages to fit token budget)
+6. Moderator Turn Instruction
+
+### 10.6 Token Budgeting
+
+* Reserve: 20% for generation output, 10% for critique memory, 10% for persona, 10% for system, remainder for context window.
+* If over budget, drop transcript oldest first, then compress critique memory (K-sentence summary), then compress persona (short form).
+
+### 10.7 Safety Guardrails
+
+* Disallow impersonation of other participants/moderator.
+* Disallow calls to violence or targeted harassment.
+* If unsafe content requested, respond with brief refusal + safer alternative framing.
 
 ---
 
-## Key Rust snippets to get you rolling
+## 11) Functional Requirements (Detailed)
 
-**Provider trait & HF stub**
+**FR-1 Sessions**: CRUD, autosave every 2s or on state change.
+**FR-2 Participants**: CRUD; color pick; persona editor with char counter & linter (fallacy hints).
+**FR-3 Turn Control**: Call menu; live streaming; cancel; retry; spinner with TTFB display.
+**FR-4 Feedback**: Thumb up/down; downvote reason (min 8 chars prompt).
+**FR-5 Adaptation**: See §10; immediate effect next time speaker is called.
+**FR-6 Provider Settings**: Global & per-participant overrides; encrypted key; test connection button.
+**FR-7 Exports**: MD/HTML/TXT. Include metadata (topic, rules, model, timestamps).
+**FR-8 Search & List**: Search by title/topic/tags.
+**FR-9 Cost/Token Info**: Show usage if provider returns; else estimate (chars/4 ≈ tokens).
 
-```rust
-use futures_core::Stream;
-use std::{pin::Pin};
-use serde::{Deserialize, Serialize};
+---
 
-#[derive(Clone, Serialize, Deserialize)]
-pub struct ChatMessage { pub role: String, pub content: String }
+## 12) Non-Functional Requirements (Budgets)
 
-#[derive(Clone)]
-pub struct HuggingFaceProvider;
+* **Perf**: TTFB ≤2.5s P50, ≤4.0s P95 (hosted baseline); UI frame >50 FPS during stream.
+* **Reliability**: No transcript loss if app crashes after stream completion; autosave cadence ≤2s.
+* **Security**: DPAPI CurrentUser; keys never exported; no telemetry by default.
+* **Offline**: App fully usable without network; provider calls fail gracefully; local provider support v1.1.
+* **Installability**: Signed MSIX/MSI; Winget manifest; clean uninstall leaves DB unless user opts to purge.
 
-#[async_trait::async_trait]
-impl LlmProvider for HuggingFaceProvider {
-    async fn stream_completion(
-        &self,
-        model_id: &str,
-        api_key: &str,
-        messages: &[ChatMessage],
-        params: &GenParams,
-    ) -> anyhow::Result<Pin<Box<dyn Stream<Item = Result<String, anyhow::Error>> + Send>>> {
-        // Build request body per HF model’s text-generation/chat format.
-        // Start reqwest streaming and wrap into an async stream of tokens.
-        // Map errors to anyhow.
-        todo!("Implement HF streaming")
-    }
+---
+
+## 13) Provider Capability Matrix
+
+| Capability     | Hugging Face Inference (v1) | Ollama (v1.1)                    |
+| -------------- | --------------------------- | -------------------------------- |
+| Streaming      | Yes (model-dependent)       | Yes                              |
+| Usage (token)  | Varies; not guaranteed      | Yes                              |
+| Latency        | Network-dependent           | Local-machine dependent          |
+| Cost           | API-based                   | Free runtime; local compute cost |
+| Safety Filters | Provider-specific           | Local model; app rules apply     |
+
+---
+
+## 14) Error Taxonomy & Recovery
+
+| Code      | Scenario          | UX                          | Recovery                                |
+| --------- | ----------------- | --------------------------- | --------------------------------------- |
+| E-TIMEOUT | TTFB/stream stall | Toast + “Retry”             | Exponential backoff: 1s, 2s, 4s (max 3) |
+| E-AUTH    | Bad API key       | Inline error in settings    | Re-enter key; “Test connection”         |
+| E-RATE    | Rate limited      | Banner + next retry ETA     | Backoff via `Retry-After`               |
+| E-NET     | Network down      | Offline badge + queue call  | Store pending; retry when online        |
+| E-PROV    | Provider 5xx      | Alert + fallback suggestion | Retry or switch model                   |
+| E-CANCEL  | User cancel       | Silent stop                 | Keep partial tokens if opted            |
+| E-SAVE    | DB write fail     | Modal with path & reason    | Retry save; export temp file            |
+
+All errors logged to local file.
+
+---
+
+## 15) Logging, Analytics & Privacy
+
+* **Default**: Only local logs (`%LOCALAPPDATA%\DebatePrep\logs\yyyy-mm-dd.log`).
+* **Opt-in Telemetry (future)**: Performance metrics only (TTFB, token/s, error codes), no content.
+* **Redaction**: Remove API keys & PII; hashes for session IDs.
+* **Export Logs**: Menu action to package recent logs as zip.
+
+---
+
+## 16) Backup & Restore
+
+* **Backup**: Export DB + `/artifacts` folder (keys excluded).
+* **Restore**: Import DB → app prompts to re-enter API keys.
+* **DPAPI Note**: Keys bound to user profile; cannot be restored across machines.
+
+---
+
+## 17) Accessibility & Localization
+
+* Keyboard-first navigation; tab order validated.
+* Labels & ARIA on interactive elements.
+* Color contrast ≥ WCAG AA in chat bubbles.
+* v1 English only; strings via resource files to enable future i18n.
+
+---
+
+## 18) Exports (Spec & Samples)
+
+### 18.1 Markdown
+
+* Header block: session title, topic, rules, date, provider/model
+* Each message:
+
+```
+### [HH:mm] {Participant Name}
+> Thesis: ...
+- Point 1
+- Point 2
+_Weaknesses_: …
+```
+
+### 18.2 HTML
+
+* Standalone HTML with embedded CSS; print-friendly.
+* Optional dark/light CSS toggle.
+
+### 18.3 TXT
+
+* Plain text; timestamped; UTF-8.
+
+### 18.4 Sample Files
+
+* See Appendix A for snippets.
+
+---
+
+## 19) Release Engineering
+
+* **Versioning**: SemVer (`MAJOR.MINOR.PATCH`), build metadata `+win` as needed.
+* **CI**: Build, unit/integration tests, code signing, artifact upload to GitHub Releases.
+* **Installers**: MSIX (primary), MSI (fallback).
+* **Distribution**: GitHub Releases + Winget manifest.
+* **Updates**: In-app “Check for update”; no auto-update in v1.
+
+---
+
+## 20) Testing & QA Plan
+
+### 20.1 Unit
+
+* Prompt assembly: respects budgets & order; deterministic given seed.
+* Critique memory: merge/decay rules, ring buffer summaries.
+* DPAPI roundtrip: encrypt/decrypt.
+* SQLite migrations: v1 → v2 idempotent.
+
+### 20.2 Integration
+
+* 2-participant flow: A→B→A with downvote altering A’s next turn.
+* Provider timeout path with retry and preserved prompt.
+* Export correctness (MD/HTML/TXT) diff vs golden files.
+
+### 20.3 E2E
+
+* “New session → participants → 5 turns → export” on clean Windows 11 VM.
+* Install/uninstall without residuals (unless user selects purge).
+
+### 20.4 Performance
+
+* TTFB sampling across 10 calls; pass thresholds.
+* UI responsiveness during 10k-char stream (no jank).
+
+### 20.5 Accessibility
+
+* Keyboard traversal, screen reader labels on critical UI.
+
+---
+
+## 21) Security
+
+* **Secrets**: DPAPI CurrentUser; zero plaintext on disk.
+* **Transport**: HTTPS; certificate pinning optional (stretch).
+* **Permissions**: Least-privilege file access under `%LOCALAPPDATA%`.
+* **Threat Model**: See Appendix C (STRIDE summary & mitigations).
+
+---
+
+## 22) Release Plan
+
+* **v1.0**: HF provider, moderator control, streaming, critique memory, MD/HTML/TXT exports, installers.
+* **v1.1**: Ollama provider, PDF export, session tags, local provider wizard.
+* **v1.2**: Judge assistant (post-hoc scoring), CSV analytics export (talk time, downvote ratio).
+
+---
+
+## 23) Success Metrics & KPIs
+
+* TTFB: ≤2.5s P50, ≤4.0s P95 on hosted baseline.
+* Export success: ≥99%.
+* Crash-free sessions (7-day): ≥99.5%.
+* Moderator-initiated messages: ≥90%.
+* Downvote with reason used in ≥50% sessions.
+* (Opt-in) Addressed-critique rate: ≥30% within 3 turns.
+
+---
+
+## 24) Open Questions
+
+* Default HF model shortlist by latency/quality?
+* Ship persona & debate-format templates (Policy, LD) as starter kits?
+* Include optional (opt-in) perf telemetry in v1.0 or defer to v1.1?
+
+---
+
+## 25) Licensing
+
+* **MIT** for app code.
+* Third-party deps under respective licenses.
+* User personas/exports belong to the user; no upload by default.
+
+---
+
+## 26) Coding Standards & Project Structure
+
+* **Language/Runtime**: C# / .NET 8; WinUI 3; MVVM (CommunityToolkit.Mvvm).
+* **Solution Layout**:
+
+```
+/App       (WinUI views, viewmodels)
+/Core      (domain: prompt assembly, critique memory, exports)
+/Provider  (adapters: HuggingFace, Ollama)
+/Infra     (SQLite, DPAPI, logging, settings)
+/Tests     (unit, integration, golden files)
+/Installer (MSIX/MSI configs)
+```
+
+* **Style**: EditorConfig enforcing nullable refs, analyzers (CA\*\*\*\*, IDE\*\*\*\*).
+* **Dependency Rules**: Views→ViewModels→Core; Provider & Infra referenced only by Core.
+
+---
+
+## 27) Glossary
+
+* **Moderator**: Human controlling turn order.
+* **Participant**: AI persona confined to role/stance.
+* **Critique Memory**: Compact rules distilled from downvotes to guide future turns.
+* **TTFB**: Time to first token.
+* **Adapter**: Provider-specific implementation of a common interface.
+
+---
+
+## Appendix A — Samples
+
+### A.1 Sample Persona
+
+```json
+{
+  "name": "Policy Hawk",
+  "position": "Supports aggressive fiscal tightening within 12 months.",
+  "constraints": "Formal, cites macro indicators, avoids moralizing.",
+  "disallowed": "Ad hominem, red herrings.",
+  "key_sources": ["BLS CPI", "FOMC minutes (general)"]
 }
 ```
 
-**Thumbs-down → critique memory**
+### A.2 Downvote → Critique Rule
 
-```rust
-pub fn record_downvote(db: &Connection, message_id: i64, reason: &str) -> anyhow::Result<()> {
-    db.execute("UPDATE messages SET feedback='down' WHERE id=?", [message_id])?;
-    let (participant_id, content): (i64, String) = db.query_row(
-        "SELECT participant_id, content FROM messages WHERE id=?",
-        [message_id],
-        |r| Ok((r.get(0)?, r.get(1)?)),
-    )?;
-    let mut mem: CritiqueMemory = load_participant_memory(db, participant_id)?;
-    mem.items.push(CritiqueItem::from_message(&content, reason));
-    mem.compact(6); // keep last 6 compact items
-    save_participant_memory(db, participant_id, &mem)?;
-    Ok(())
+* Downvote reason: “You dodged their strongest inflation counter-example.”
+* Rule stored:
+
+```json
+{
+  "rule": "Address opponent's strongest counter-example first in 1 sentence.",
+  "bad_pattern": "Ignored strongest counter example.",
+  "guidance": "Start with: 'Steelman: ...' then respond.",
+  "strength": 0.7
 }
 ```
 
-**System prompt assembly**
+### A.3 Export (Markdown excerpt)
 
-```rust
-fn build_system_prompt(global: &str, persona: &str, critique: &CritiqueMemory) -> String {
-    let critique_block = if critique.items.is_empty() {
-        String::new()
-    } else {
-        let bullets = critique.items.iter().map(|c| format!("- {}", c.as_bullet())).collect::<Vec<_>>().join("\n");
-        format!("SELF-CRITIQUE:\n{}\nADJUSTMENT:\n- Address the critique explicitly in this turn.\n- Be concise and persuasive.\n", bullets)
-    };
-    format!("{global}\nROLE & PERSONA:\n{persona}\n{critique_block}")
-}
+```
+# Debate-Prep Transcript — 2025-09-18
+Topic: Should fiscal tightening begin within 12 months?
+Model: hf/themodel vX.Y
+
+[10:02] Policy Hawk
+> Thesis: Tightening should start within 12 months.
+- Inflation expectations remain above target...
+- ...
+
+_Weaknesses_: Sensitive to labor slack misreads.
 ```
 
 ---
 
-This gives you a robust, Windows-friendly Rust app that behaves exactly like your “debate playground”: many participants, moderator-driven turns, exports, and feedback that actually shapes future responses—without fine-tuning or cloud dependencies.
+## Appendix B — Provider Adapter Interface (Pseudo-C#)
 
-Want me to sketch the initial Tauri commands, DB schema migrations, and the React component structure next so you can paste them into Cursor and go?
+```csharp
+public interface IModelProvider
+{
+    string Name { get; }
+    Task<ProviderHealth> TestAsync(CancellationToken ct);
+    IAsyncEnumerable<TokenChunk> StreamAsync(
+        PromptBundle prompt,
+        GenerationParams gen,
+        CancellationToken ct);
+    Task<Usage?> TryGetLastUsageAsync(); // tokens, cost if available
+}
+
+public sealed record PromptBundle(
+    string System, string Persona, string Critique, string Context, string User);
+
+public sealed record GenerationParams(
+    int MaxTokens, float Temperature, float TopP, float PresencePenalty, float FrequencyPenalty);
+```
+
+---
+
+## Appendix C — Threat Model (STRIDE Snapshot)
+
+* **Spoofing**: Key theft → Mitigation: DPAPI CurrentUser + no plaintext + no clipboard copy of key.
+* **Tampering**: DB edits → Mitigation: checksums on export; schema constraints.
+* **Repudiation**: Local logs timestamped; user export.
+* **Info Disclosure**: Logs redact content; exports user-controlled.
+* **DoS**: Rate limiting retries; cancel operations.
+* **Elevation**: App runs user-mode; no admin required.
+
+---
+
+## Appendix D — Error Messages (User-Facing Copy)
+
+* Timeout: “The model didn’t respond in time. You can retry or switch models.”
+* Auth: “Your API key looks invalid. Re-enter it and try again.”
+* Rate limit: “The model is busy. We’ll retry in {n}s.”
+* Network: “You’re offline. We’ll reconnect automatically.”
