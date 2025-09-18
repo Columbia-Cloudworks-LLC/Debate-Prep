@@ -2,6 +2,10 @@
 
 ## 0) Change Log
 
+* **v4.0 (2025-09-18)**:
+
+  * Targeted specificity
+
 * **v3.0 (2025-09-18)**:
 
   * Added deterministic algorithms (critique memory merge/decay, autosave precedence, token truncation order).
@@ -93,6 +97,9 @@ Key needs: determinism over turn order, low cost, fast iteration, archived trans
 
 * WinUI 3 / .NET 8 (MVVM).
 * **Toast = InfoBar**; **Banner = TeachingTip**; **Modal = ContentDialog**. Explicit mapping avoids ambiguity.
+* All controls support tab order, Enter = confirm, Escape = cancel. 
+* TeachingTips must be dismissible via Escape. 
+* ContentDialogs always default focus on the primary button.
 
 ### 7.2 Backend & Storage
 
@@ -123,6 +130,8 @@ Same schema as v2. **Clarification**: `participants.archived` column added (bool
 
 * Timer triggers every 2s *unless* a state change (Idle→Generating, etc.) fires.
 * State change saves take precedence; timer resets.
+* If provider stream ends malformed (no IsFinal chunk), app finalizes with “incomplete” flag in transcript. 
+* User may retry; autosave still commits partial state.
 
 ---
 
@@ -132,7 +141,7 @@ Same schema as v2. **Clarification**: `participants.archived` column added (bool
 
 **Algorithm clarified**:
 
-* Merge uses `scikit-learn` `TfidfVectorizer(ngram_range=(1,2), stop_words='english')`.
+* Merge implemented in C# with ML.NET using TextFeaturizingEstimator (bigrams enabled, English stop words). No Python interop is used.
 * Cosine similarity threshold ≥0.8.
 * On upvote, decrement all rules not used in last turn by 0.02.
 
@@ -143,6 +152,8 @@ Order fixed:
 1. Transcript (oldest truncated first).
 2. Critique memory (summarized via in-app regex summarizer, not LLM).
 3. Persona (short form truncation rules in Appendix E).
+4. All float comparisons (cosine similarity, decay strength) are rounded to 2 decimal places before threshold checks. Token counts are treated as integers, never floats.
+5. Always round cosine similarity to 2 decimals before comparison. All thresholds use rounded values. Token counts must be cast to int before arithmetic.
 
 ---
 
@@ -154,7 +165,7 @@ No structural changes. All ambiguous references to “toast/banner/modal” now 
 
 ## 24) Open Questions
 
-Unchanged from v2.
+Unchanged from v3.
 
 ---
 
@@ -254,15 +265,17 @@ public sealed record TokenChunk(
 ### E.1 Critique Memory
 
 * Library: `scikit-learn` (TfidfVectorizer, cosine\_similarity).
-* Threshold: merge if cosine ≥ 0.8.
+* Threshold: merge if cosine ≥ 0.80 (rounded to 2 decimals).
+* Floating-point comparisons use Math.Round(value, 2)
 * Decay: −0.02 applied to all non-recent rules on every upvote.
+* Decay always applied with 2-decimal rounding. Determinism enforced across platforms.
 * Summarization: truncate to N sentences using regex (strip after final period). No LLM summarizer.
 
 ### E.2 Autosave
 
 * Timer interval: 2000ms.
 * If state change occurs before timer fires, perform save immediately and reset timer.
-* If both occur same ms, state-change save wins.
+* Treat any state-change event occurring within the same 1ms tick as timer expiry as winning. Implementation may use monotonic clock tick comparisons.
 
 ### E.3 Token Budget
 
@@ -275,12 +288,16 @@ public sealed record TokenChunk(
 * Metadata field order: Title → Topic → Rules → Date → Provider/Model → Participants.
 * Golden files stored in `/Tests/Golden/exports/`.
 * Any diff against golden = test failure.
+* All exports use UTF-8 encoding with LF newlines.
+* Timestamps use ISO-8601 (yyyy-MM-dd HH:mm:ss, 24-hour, zero-padded). 
+* Locale fixed to en-US. Any diff in encoding/newlines is considered a test failure.
 
 ### E.5 Logging
 
 * Format: `[yyyy-MM-dd HH:mm:ss][LEVEL][Code] Message`.
 * API keys redacted with `***`.
 * Golden logs stored in `/Tests/Golden/logs/`.
+* Logs are UTF-8 with LF newlines, fixed to en-US locale. Golden logs follow same standard.
 
 ### E.6 UI Mapping
 
